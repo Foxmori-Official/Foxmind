@@ -35,6 +35,7 @@ function summaryPanel(kind: SummaryKind, prefix: string, buttonId: string, promp
     retry: el<HTMLButtonElement>(prefix + 'Retry'),
     displayed: undefined as SummaryRecord | undefined,
     request: undefined as AbortController | undefined,
+    configuration: undefined as Settings | undefined,
   }
 }
 
@@ -57,6 +58,8 @@ let archiveScope: ArchiveScope
 let activeTab: chrome.tabs.Tab | undefined
 let activePage: ActivePage | undefined
 let tabQuery = 0
+let settingsGeneration = 0
+const summarySettingKeys = ['allowCloud', 'credential', 'credentialRevision', 'model', 'provider', 'customAI', 'language', 'uiLocale'] as const
 let setupMessage = 'configure'
 let archiveGeneration = emptyArchive.generation
 let exporting = false
@@ -106,6 +109,15 @@ function displaySummary(panel: SummaryPanel, entry?: SummaryRecord) {
 function cancelSummary(panel: SummaryPanel) {
   panel.request?.abort()
   panel.request = undefined
+  panel.configuration = undefined
+}
+
+async function readSummarySettings(): Promise<Settings> {
+  for (;;) {
+    const generation = settingsGeneration
+    const settings = await getSettings()
+    if (generation === settingsGeneration) return settings
+  }
 }
 
 function updateArchiveGeneration(generation: string) {
@@ -179,8 +191,9 @@ async function generate(panel: SummaryPanel) {
     const needsRescan = await requestPageAccess(target)
     await assertActivePage(target)
     if (!isCurrent()) return
-    const settings = await getSettings()
+    const settings = await readSummarySettings()
     if (!isCurrent()) return
+    panel.configuration = settings
     const required = summarySetupMessage(settings)
     const service = getAIService(settings)
     if (required || !service) {
@@ -230,7 +243,10 @@ async function generate(panel: SummaryPanel) {
     summaryStatus(panel, code, { retry: true, setup: code === 'invalidKey' || code === 'modelUnavailable' })
   } finally {
     clearTimeout(timeout)
-    if (isCurrent()) panel.request = undefined
+    if (isCurrent()) {
+      panel.request = undefined
+      panel.configuration = undefined
+    }
   }
 }
 
@@ -412,7 +428,7 @@ function summarySetupMessage(settings: Settings): string {
 }
 
 async function updateConfigured() {
-  const settings = await getSettings()
+  const settings = await readSummarySettings()
   setupMessage = summarySetupMessage(settings)
   const service = getAIService(settings)
   showStatus(el('serviceTarget'), service ? t('summaryDestination') + ' · ' + new URL(service.baseUrl).host + (service.model ? ' · ' + service.model : '') : '')
@@ -478,9 +494,14 @@ async function initialize() {
       })
     }
     if (area !== 'local') return
-    if (['allowCloud', 'credential', 'credentialRevision', 'model', 'provider', 'customAI', 'language', 'uiLocale'].some(key => key in changes)) {
+    if (summarySettingKeys.some(key => key in changes)) {
+      settingsGeneration++
       for (const panel of summaries) {
-        if (!panel.request) continue
+        if (!panel.request || !panel.configuration) continue
+        // Storage notifications can arrive after a request has read the new
+        // configuration. Only invalidate a request still using older values.
+        if (!summarySettingKeys.some(key => key in changes &&
+          JSON.stringify(panel.configuration![key]) !== JSON.stringify(changes[key].newValue))) continue
         cancelSummary(panel)
         summaryStatus(panel, 'summarySettingsChanged', { retry: true })
       }

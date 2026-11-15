@@ -617,6 +617,11 @@ try {
   await eventually(() => evaluate('document.querySelector("#serviceTarget").textContent.includes("127.0.0.1")'), 'custom destination in the side panel')
   await evaluate('document.querySelector("#summarizePage").click()')
   await eventually(() => evaluate('document.querySelector("#summaryResult .overview")?.textContent === "Custom service summary."'), 'custom API summary replaces the page result')
+    .catch(async error => { throw new Error(error.message + ' (' + JSON.stringify({
+      status: await evaluate('document.querySelector("#summaryStatus").textContent'),
+      page: await evaluate('document.querySelector("#pageTitle").textContent'),
+      customCalls: customCalls.length,
+    }) + ')') })
   assert.equal(modelCalls.length, beforeCustom)
   assert.equal(customCalls.length, 1)
   assert.equal(customCalls[0].request.model, 'fixture-chat')
