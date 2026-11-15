@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Foxmind</title>
+    <link rel="icon" href="./icons/foxmind-32.png">
+  </head>
+  <body>
+    <header class="masthead">
+      <div class="wordmark"><img src="./icons/foxmind-48.png" width="28" height="28" alt="">Foxmind</div>
+      <button id="settings" type="button" class="quiet" data-msg="settings">Settings</button>
+    </header>
+    <main class="panel">
+      <div class="page-heading">
+        <p id="pageHost" class="site" hidden></p>
+        <h1 id="pageTitle" data-msg="panelTitle">Current page</h1>
+        <div class="controls">
+          <button id="summarizePage" type="button" class="primary" data-msg="summarizePage" disabled>Summarize page</button>
+          <details id="exportMenu" class="export-menu" hidden>
+            <summary class="button" data-msg="exportPage">Export page</summary>
+            <div class="export-formats">
+              <button type="button" data-export-format="html" data-msg="exportHtml" disabled>Save HTML</button>
+              <button type="button" data-export-format="markdown" data-msg="exportMarkdown" disabled>Save Markdown</button>
+            </div>
+          </details>
+        </div>
+        <p id="pageStatus" class="muted note" role="status" hidden></p>
+        <p id="exportStatus" class="muted note" role="status" hidden></p>
+      </div>
+      <section aria-labelledby="summaryHeading" class="card">
+        <div class="section-top">
+          <h2 id="summaryHeading" data-msg="summary">Summary</h2>
+          <button id="summaryCopy" type="button" class="quiet compact" data-msg="copy" hidden>Copy</button>
+        </div>
+        <p id="summaryStatus" class="muted" role="status" data-msg="panelReady">Choose Summarize page to create a summary.</p>
+        <p id="summarySource" class="summary-source" hidden>
+          <span data-msg="summarySource"></span>
+          <a id="summaryLink" target="_blank" rel="noopener noreferrer"></a>
+        </p>
+        <p id="summaryCoverage" class="muted note" hidden></p>
+        <div id="summaryResult"></div>
+        <div class="controls">
+          <button id="summaryConfigure" class="primary" type="button" data-msg="openSettings" hidden>Set up Foxmori</button>
+          <button id="summaryRetry" type="button" data-msg="retry" hidden>Try again</button>
+        </div>
+      </section>
+      <section id="selectionSection" aria-labelledby="selectionHeading" class="card">
+        <div class="section-top">
+          <h2 id="selectionHeading" data-msg="selectionHeading">Selection</h2>
+          <button id="selection" type="button" data-msg="summarizeSelection" disabled>Summarize selection</button>
+        </div>
+        <p id="selectionStatus" class="muted" role="status" data-msg="noSelection">Select some text on the page first.</p>
+        <p id="selectionSource" class="summary-source" hidden>
+          <span data-msg="summarySource"></span>
+          <a id="selectionLink" target="_blank" rel="noopener noreferrer"></a>
+        </p>
+        <p id="selectionCoverage" class="muted note" hidden></p>
+        <div id="selectionResult"></div>
+        <div class="controls">
+          <button id="selectionConfigure" class="primary" type="button" data-msg="openSettings" hidden>Set up Foxmori</button>
+          <button id="selectionRetry" type="button" data-msg="retry" hidden>Try again</button>
+          <button id="selectionCopy" type="button" class="quiet" data-msg="copy" hidden>Copy</button>
+        </div>
+      </section>
+      <section id="resourceSection" aria-labelledby="resourceHeading" class="card" hidden>
+        <div class="section-top">
+          <h2 id="resourceHeading"><span data-msg="resources">Resources</span> <span id="resourceCount" class="count" hidden></span></h2>
+          <button id="refreshResources" type="button" class="quiet compact" data-msg="refresh">Refresh</button>
+        </div>
+        <p id="resourceStatus" class="muted" role="status" hidden></p>
+        <ul id="resources" class="resource-list"></ul>
+        <button id="showAll" type="button" class="quiet more" aria-controls="resources" aria-expanded="false" hidden></button>
+        <p id="handoffStatus" class="muted note" role="status" hidden></p>
+      </section>
+    </main>
+    <script type="module" src="./src/sidepanel.ts"></script>
+  </body>
+</html>

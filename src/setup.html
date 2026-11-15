@@ -1,0 +1,189 @@
+<div class="settings-shell">
+  <header class="settings-header">
+    <div class="settings-brand">
+      <div class="wordmark"><img src="./icons/foxmind-128.png" width="36" height="36" alt="">Foxmind</div>
+      <h1 id="settingsTitle" data-msg="settings" hidden></h1>
+    </div>
+    <div class="settings-tools">
+      <label class="locale-control">
+        <span class="locale-label" data-msg="interfaceLanguage"></span>
+        <select id="uiLocale">
+          <option value="auto" data-msg="automatic"></option>
+          <option value="en">English</option>
+          <option value="zh-CN">简体中文</option>
+        </select>
+      </label>
+      <button id="reopenGuide" type="button" class="quiet" data-msg="reopenGuide" hidden></button>
+    </div>
+  </header>
+
+  <main class="settings-body">
+    <header id="setupIntroGroup" class="setup-intro" hidden>
+      <h1 id="setupTitle" data-msg="welcome"></h1>
+      <p class="muted" data-msg="setupIntro"></p>
+    </header>
+
+    <nav id="steps" class="steps" data-msg-aria="setupProgress" hidden>
+      <button type="button" data-go-step="0" data-msg="accountTitle" aria-current="step"></button>
+      <button type="button" data-go-step="1" data-msg="connectFoxdown"></button>
+      <button type="button" data-go-step="2" data-msg="readyTitle"></button>
+    </nav>
+
+    <div id="settingsColumns" class="settings-columns">
+      <div class="settings-preferences">
+        <div class="account-model-group" data-step="0" hidden>
+          <section class="card settings-card" aria-labelledby="accountHeading">
+            <header class="settings-card-top">
+              <div>
+                <h2 id="accountHeading" data-msg="accountTitle"></h2>
+                <p class="muted" data-msg="accountPrompt"></p>
+              </div>
+              <button id="openConsole" type="button" class="primary external-button" data-msg="openConsole"></button>
+            </header>
+
+            <div class="account-row">
+              <div id="accountAvatar" class="account-avatar" aria-hidden="true">F</div>
+              <div class="account-name-block">
+                <p id="accountState" class="muted"></p>
+                <p id="accountLabel" class="identity" hidden></p>
+              </div>
+              <button id="readAccount" type="button" data-msg="checkAccount"></button>
+            </div>
+            <div id="accountGroups" class="setting-field" hidden>
+              <label for="group" data-msg="group"></label>
+              <div class="field-line">
+                <select id="group"></select>
+                <button id="issueKey" type="button" class="primary" data-msg="issueKey"></button>
+              </div>
+            </div>
+            <p id="accountStatus" class="muted note" role="status" hidden></p>
+
+            <div class="credential-row">
+              <p id="credentialStatus" class="muted"></p>
+              <button id="removeKey" type="button" class="quiet" data-msg="removeKey" hidden></button>
+            </div>
+            <details id="existingKey" class="manual">
+              <summary data-msg="manualSetup"></summary>
+              <form id="manualForm" class="setting-field">
+                <label for="manualKey" data-msg="manualKey"></label>
+                <div class="field-line">
+                  <input id="manualKey" type="password" autocomplete="off" spellcheck="false" maxlength="512" required>
+                  <button id="saveKey" type="submit" data-msg="saveKey"></button>
+                </div>
+              </form>
+            </details>
+          </section>
+
+          <section class="card settings-card" aria-labelledby="modelHeading">
+            <header class="settings-card-top">
+              <h2 id="modelHeading" data-msg="summaryModel"></h2>
+            </header>
+            <div class="model-fields">
+              <div class="setting-field">
+                <label for="model" data-msg="model"></label>
+                <div class="field-line">
+                  <select id="model"></select>
+                  <button id="refreshModels" type="button" data-msg="refreshModels"></button>
+                </div>
+              </div>
+              <div class="setting-field">
+                <label for="language" data-msg="language"></label>
+                <select id="language">
+                  <option value="auto" data-msg="automatic"></option>
+                  <option value="zh">简体中文</option>
+                  <option value="en">English</option>
+                </select>
+              </div>
+            </div>
+            <label class="permission-row">
+              <input type="checkbox" id="allowCloud">
+              <span>
+                <strong data-msg="summaryPermission"></strong>
+                <span class="muted" data-msg="consent"></span>
+              </span>
+            </label>
+            <p id="modelStatus" class="muted note" role="status" hidden></p>
+          </section>
+        </div>
+
+        <section class="card settings-card" data-step="1" aria-labelledby="serverHeading" hidden>
+          <header class="settings-card-top">
+            <div>
+              <h2 id="serverHeading" data-msg="connectFoxdown"></h2>
+              <p class="muted" data-msg="serverHint"></p>
+            </div>
+            <p id="serverBadge" class="connection-badge"></p>
+          </header>
+          <form id="serverForm" class="server-form">
+            <div class="setting-field">
+              <label for="foxdownUrl" data-msg="serverUrl"></label>
+              <input id="foxdownUrl" type="url" placeholder="http://127.0.0.1:16801" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="setting-field">
+              <label for="foxdownToken" data-msg="serverToken"></label>
+              <input id="foxdownToken" type="password" autocomplete="off" spellcheck="false">
+            </div>
+            <div class="server-actions">
+              <button id="connectServer" type="submit" class="primary" data-msg="testConnection"></button>
+              <button id="disconnectServer" type="button" class="quiet" data-msg="disconnect"></button>
+            </div>
+          </form>
+          <p id="serverStatus" class="muted note" role="status" hidden></p>
+        </section>
+      </div>
+
+      <section id="summaryArchiveSettings" class="card settings-card archive-card" aria-labelledby="archiveHeading" hidden>
+        <header class="settings-card-top">
+          <div class="archive-heading">
+            <h2 id="archiveHeading" data-msg="summaryArchive"></h2>
+            <span id="archiveCount" class="archive-count" aria-live="polite" hidden></span>
+          </div>
+          <button id="clearArchive" type="button" class="quiet archive-remove" data-msg="clearArchive" disabled></button>
+        </header>
+        <div class="archive-search">
+          <span class="search-icon" aria-hidden="true"></span>
+          <input id="archiveSearch" type="search" data-msg-aria="archiveSearchLabel" autocomplete="off" spellcheck="false">
+        </div>
+        <p id="privateArchiveNotice" class="muted note" data-msg="privateArchiveHint" hidden></p>
+        <p id="archiveStatus" class="muted note" role="status" hidden></p>
+        <div id="archiveEmpty" class="archive-empty" hidden>
+          <div class="archive-empty-icon" aria-hidden="true"><span class="archive-glyph"></span></div>
+          <p id="archiveEmptyTitle" class="identity" data-msg="archiveEmpty"></p>
+          <p id="archiveEmptyHint" class="muted" data-msg="archiveEmptyHint"></p>
+        </div>
+        <div id="archiveEntries" class="archive-entries"></div>
+      </section>
+    </div>
+
+    <dialog id="archiveReader" class="archive-reader" aria-labelledby="archiveReadTitle">
+      <header class="reader-header">
+        <div>
+          <p id="archiveReadMeta" class="muted"></p>
+          <h2 id="archiveReadTitle"></h2>
+        </div>
+        <form method="dialog">
+          <button type="submit" class="quiet" data-msg="close" autofocus></button>
+        </form>
+      </header>
+      <div id="archiveReadBody" class="reader-body"></div>
+      <p id="archiveReadStatus" class="muted reader-alert" role="status" hidden></p>
+      <footer class="reader-footer">
+        <a id="archiveSource" class="button primary" target="_blank" rel="noopener noreferrer" data-msg="openSource"></a>
+        <button id="deleteArchiveEntry" type="button" class="quiet archive-remove" data-msg="deleteArchiveEntry"></button>
+      </footer>
+    </dialog>
+
+    <section id="ready" class="card settings-card ready-card" data-step="2" hidden>
+      <img src="./icons/foxmind-128.png" width="72" height="72" alt="">
+      <h2 data-msg="readyTitle"></h2>
+      <p class="muted" data-msg="readyHint"></p>
+      <button id="finish" type="button" class="primary" data-msg="finishSetup"></button>
+    </section>
+
+    <footer id="wizardControls" class="wizard-controls" hidden>
+      <button id="back" type="button" data-msg="back"></button>
+      <button id="later" type="button" class="quiet" data-msg="setupLater"></button>
+      <button id="next" type="button" class="primary" data-msg="continue"></button>
+    </footer>
+  </main>
+</div>

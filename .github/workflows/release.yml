@@ -1,0 +1,59 @@
+name: 构建与发布
+on:
+  push:
+    branches: [main]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: false
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '26'
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      - run: xvfb-run --auto-servernum npm run test:browser
+      - run: npm run package
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Foxmind-${{ github.sha }}
+          path: |
+            release/foxmind-*.zip
+            release/SHA256SUMS.txt
+      - name: 发布 Release
+        if: github.event_name != 'pull_request' && (startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch' || contains(github.event.head_commit.message, '[release]'))
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          version=$(node -p 'require("./package.json").version')
+          tag="v$version"
+          notes="docs/releases/$tag.md"
+          test -s "$notes"
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            test "$GITHUB_REF_NAME" = "$tag"
+          fi
+          if draft=$(gh release view "$tag" --json isDraft --jq '.isDraft' 2>/dev/null); then
+            if [ "$draft" = false ]; then
+              exit 0
+            fi
+            gh release upload "$tag" "release/foxmind-$version.zip" release/SHA256SUMS.txt --clobber
+            gh release edit "$tag" --title "Foxmind $tag" --notes-file "$notes"
+          else
+            gh release create "$tag" "release/foxmind-$version.zip" release/SHA256SUMS.txt --target "$GITHUB_SHA" --draft --title "Foxmind $tag" --notes-file "$notes"
+          fi
+          gh release edit "$tag" --draft=false --latest

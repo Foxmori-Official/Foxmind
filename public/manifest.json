@@ -1,0 +1,28 @@
+{
+  "manifest_version": 3,
+  "name": "Foxmind",
+  "description": "__MSG_extensionDescription__",
+  "version": "0.0.1",
+  "minimum_chrome_version": "116",
+  "default_locale": "en",
+  "homepage_url": "https://foxmori.com/",
+  "permissions": ["activeTab", "scripting", "sidePanel", "storage", "tabs", "webRequest"],
+  "host_permissions": ["https://foxmori.com/*", "https://api.foxmori.com/*"],
+  "optional_host_permissions": ["http://*/*", "https://*/*"],
+  "action": {
+    "default_title": "Foxmind",
+    "default_icon": {
+      "16": "icons/foxmind-16.png",
+      "32": "icons/foxmind-32.png"
+    }
+  },
+  "icons": {
+    "16": "icons/foxmind-16.png",
+    "32": "icons/foxmind-32.png",
+    "48": "icons/foxmind-48.png",
+    "128": "icons/foxmind-128.png"
+  },
+  "background": { "service_worker": "background.js", "type": "module" },
+  "side_panel": { "default_path": "sidepanel.html" },
+  "options_ui": { "page": "options.html", "open_in_tab": true }
+}
