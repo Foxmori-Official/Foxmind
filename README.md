@@ -65,6 +65,10 @@ npm run package
 
 ## 致谢与许可
 
-Foxmind 使用 GPL-3.0 许可。正文提取采用 [Mozilla Readability](https://github.com/mozilla/readability)，Markdown 转换采用 [Turndown](https://github.com/mixmark-io/turndown) 和其 GFM 插件，第三方代码遵循各自许可证。[许可证](LICENSE)
+Foxmind 使用 GPL-3.0 许可，第三方代码遵循各自许可证。[许可证](LICENSE)
 
-项目复用 Foxtranslate 的狐森账户连接思路和 Foxdown 的下载服务器协议，参考 ChatGPT-Box 的网页提取与侧边栏交互设计。[Foxtranslate](https://github.com/Foxmori-Official/Foxtranslate) · [Foxdown](https://github.com/Foxmori-Official/Foxdown) · [ChatGPT-Box](https://github.com/ChatGPTBox-dev/chatGPTBox)
+感谢以下项目的作者与贡献者。
+
+- [Mozilla Readability](https://github.com/mozilla/readability) · 网页正文提取。
+- [Turndown](https://github.com/mixmark-io/turndown) 和 [Turndown GFM](https://github.com/mixmark-io/turndown-plugin-gfm) · HTML 到 Markdown 转换。
+- [ChatGPT-Box](https://github.com/ChatGPTBox-dev/chatGPTBox) · 网页提取与侧边栏交互参考。
