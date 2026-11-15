@@ -9,7 +9,17 @@ export interface Credential {
   label?: string
 }
 
+export type AIProvider = 'foxmori' | 'custom'
+
+export interface AIService {
+  baseUrl: string
+  key: string
+  model: string
+}
+
 export interface Settings {
+  provider: AIProvider
+  customAI: AIService | null
   credential: Credential | null
   credentialRevision: string
   model: string
@@ -22,6 +32,8 @@ export interface Settings {
 }
 
 const defaults: Settings = {
+  provider: 'foxmori',
+  customAI: null,
   credential: null,
   credentialRevision: '',
   model: '',

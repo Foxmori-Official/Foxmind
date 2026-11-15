@@ -1,5 +1,5 @@
 {
   "extensionDescription": {
-    "message": "使用狐森模型总结当前网页，联动 Foxdown 查看可提取的资源。"
+    "message": "使用狐森或自定义 OpenAI 兼容 AI 服务总结网页，导出内容并联动 Foxdown 保存资源。"
   }
 }

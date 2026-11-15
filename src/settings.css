@@ -91,6 +91,10 @@
 }
 
 .account-model-group .settings-card + .settings-card { border-top: 1px solid var(--line); }
+.provider-settings { display: grid; gap: 8px; }
+.provider-settings label { font-weight: 700; font-size: 16px; }
+#customAISettings .muted { overflow-wrap: anywhere; }
+#summaryDestination { overflow-wrap: anywhere; }
 
 .settings-body {
   display: grid;

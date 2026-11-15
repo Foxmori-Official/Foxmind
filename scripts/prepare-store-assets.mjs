@@ -73,7 +73,7 @@ try {
         evidence: [{ id: 3, text: current.paragraphs[2] }], at: Date.now() - 3600000, selected: true, limited: false,
       }]
       await chrome.storage.local.set({
-        onboardingCompleted: true, uiLocale: locale, allowCloud: true,
+        onboardingCompleted: true, uiLocale: locale, allowCloud: true, provider: 'foxmori', customAI: null,
         foxmoriAccount: { id: 1, label: 'demo@example.test' },
         credential: { key: 'screenshot-demo-only', label: 'demo@example.test · Demo' }, model: 'Demo model',
         'foxmind-summary-archive': { generation: '', entries: records },
@@ -87,6 +87,18 @@ try {
     await settings.getByRole('dialog').waitFor()
     await settings.screenshot({ path: join(output, '03-archive-' + locale + '.png') })
     await settings.keyboard.press('Escape')
+
+    await worker.evaluate(async () => {
+      await chrome.storage.local.set({
+        provider: 'custom',
+        customAI: { baseUrl: 'https://ai.example.test/v1', key: 'screenshot-demo-only', model: 'demo-chat' },
+        allowCloud: true,
+      })
+    })
+    await settings.reload()
+    await settings.locator('#customAISettings').waitFor()
+    await settings.screenshot({ path: join(output, '04-custom-ai-' + locale + '.png') })
+    await worker.evaluate(() => chrome.storage.local.set({ provider: 'foxmori', allowCloud: true }))
 
     const stage = await context.newPage()
     await stage.goto(base + '/options.html')
@@ -143,7 +155,7 @@ try {
     await promo.screenshot({ path: join(output, name) })
   }
   for (const locale of ['zh-CN', 'en']) {
-    for (const prefix of ['01-sidepanel', '02-settings', '03-archive']) {
+    for (const prefix of ['01-sidepanel', '02-settings', '03-archive', '04-custom-ai']) {
       const file = join(output, prefix + '-' + locale + '.png')
       const metadata = await sharp(file).metadata()
       assert.equal(metadata.width, 1280)

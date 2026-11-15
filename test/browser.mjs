@@ -19,6 +19,7 @@ const serverToken = 'fixture-server-token'
 const mediaUrl = '/stream.m3u8?token=fixture-media'
 const selectedSentence = 'Local volunteers counted bird species in the wetland'
 const modelCalls = []
+const customCalls = []
 const downloads = []
 let keyIssued = false
 let pauseNextSummary
@@ -182,6 +183,20 @@ try {
   const httpsPort = await listen(secureServer)
 
   localServer = createServer(async (req, res) => {
+    if (req.url.startsWith('/ai/v1/') || req.url.startsWith('/local/v1/')) {
+      const local = req.url.startsWith('/local/')
+      if (!local && req.headers.authorization !== 'Bearer ' + fixtureKey) return json(res, {}, 401)
+      if (req.url.endsWith('/models')) return local ? json(res, {}, 404) : json(res, { data: [{ id: 'fixture-chat' }] })
+      if (req.url.endsWith('/chat/completions')) {
+        const request = JSON.parse(await body(req))
+        const source = JSON.parse(request.messages[1].content)
+        customCalls.push({ url: req.url, authorization: req.headers.authorization, cookie: req.headers.cookie, request, source })
+        const response = { overview: local ? 'Local model summary.' : 'Custom service summary.',
+          points: [{ text: 'The source describes field observations.', evidenceIds: [source.paragraphs[0].id] }] }
+        return json(res, { choices: [{ message: { content: JSON.stringify(response) } }] })
+      }
+      return json(res, {}, 404)
+    }
     if (req.url === mediaUrl) {
       res.writeHead(200, { 'Content-Type': 'application/vnd.apple.mpegurl' })
       return res.end('#EXTM3U\n')
@@ -578,6 +593,84 @@ try {
   assert.equal(await evaluate('document.querySelector(".resource-row a").href'), pageOrigin + '/files/report.pdf?case=fixture')
   console.log('Direct-link fallback passed')
 
+  // Use the same key and model at a different API base to verify cache isolation.
+  await evaluate('document.querySelector("#summarizePage").click()')
+  await eventually(() => evaluate('document.querySelector("#summaryResult .overview")?.textContent.includes("Native trees")'), 'Foxmori summary before switching providers')
+  const beforeCustom = modelCalls.length
+  await options.bringToFront()
+  await options.locator('#aiProvider').selectOption('custom')
+  await options.waitForFunction(() => !document.querySelector('#customAISettings').hidden && !document.querySelector('#aiProvider').disabled)
+  assert.equal(await options.locator('#allowCloud').isChecked(), false)
+  await options.locator('#customBaseUrl').fill(origin + '/ai/v1/chat/completions')
+  await options.locator('#customKey').fill(fixtureKey)
+  await options.locator('#customLoadModels').click()
+  await options.waitForFunction(() => document.querySelector('#customModel').value === 'fixture-chat' &&
+    !document.querySelector('#saveCustomAI').disabled)
+  await options.locator('#saveCustomAI').click()
+  await options.waitForFunction(() => document.querySelector('#customAIStatus').textContent === 'AI service saved.' &&
+    !document.querySelector('#aiProvider').disabled)
+  assert.equal(await options.locator('#customBaseUrl').inputValue(), origin + '/ai/v1')
+  assert.equal(await options.locator('#allowCloud').isChecked(), false)
+  await options.locator('#allowCloud').check()
+  await options.waitForFunction(async () => (await chrome.storage.local.get('allowCloud')).allowCloud)
+  await website.bringToFront()
+  await eventually(() => evaluate('document.querySelector("#serviceTarget").textContent.includes("127.0.0.1")'), 'custom destination in the side panel')
+  await evaluate('document.querySelector("#summarizePage").click()')
+  await eventually(() => evaluate('document.querySelector("#summaryResult .overview")?.textContent === "Custom service summary."'), 'custom API summary replaces the page result')
+  assert.equal(modelCalls.length, beforeCustom)
+  assert.equal(customCalls.length, 1)
+  assert.equal(customCalls[0].request.model, 'fixture-chat')
+  assert.equal(customCalls[0].authorization, 'Bearer ' + fixtureKey)
+  assert.equal(customCalls[0].cookie, undefined)
+
+  await website.evaluate(() => {
+    const range = document.createRange()
+    range.selectNodeContents(document.querySelector('article p'))
+    window.getSelection().removeAllRanges()
+    window.getSelection().addRange(range)
+  })
+  await evaluate('document.querySelector("#selection").click()')
+  await eventually(() => evaluate('document.querySelector("#selectionResult .overview")?.textContent === "Custom service summary."'), 'custom API selection summary')
+  assert.equal(customCalls.length, 2)
+
+  await options.bringToFront()
+  await options.locator('#aiProvider').selectOption('foxmori')
+  await options.waitForFunction(() => !document.querySelector('#foxmoriSettings').hidden &&
+    !document.querySelector('#aiProvider').disabled)
+  assert.equal(await options.locator('#model').inputValue(), 'fixture-chat')
+  assert.equal(await options.evaluate(async () => (await chrome.storage.local.get('credential')).credential.key), fixtureKey)
+  assert.equal(await options.locator('#allowCloud').isChecked(), false)
+  await options.locator('#allowCloud').check()
+  await options.waitForFunction(async () => (await chrome.storage.local.get('allowCloud')).allowCloud)
+  await website.bringToFront()
+  await eventually(() => evaluate('document.querySelector("#serviceTarget").textContent.includes("api.foxmori.com")'), 'switch restores Foxmori destination')
+  await evaluate('document.querySelector("#summarizePage").click()')
+  await eventually(() => evaluate('document.querySelector("#summaryResult .overview")?.textContent.includes("Native trees")'), 'Foxmori uses its own cached result')
+  assert.equal(modelCalls.length, beforeCustom)
+
+  await options.bringToFront()
+  await options.locator('#aiProvider').selectOption('custom')
+  await options.waitForFunction(() => !document.querySelector('#customAISettings').hidden && !document.querySelector('#aiProvider').disabled)
+  assert.equal(await options.locator('#customBaseUrl').inputValue(), origin + '/ai/v1')
+  await options.locator('#customBaseUrl').fill(origin + '/local/v1')
+  await options.locator('#customKey').fill('')
+  await options.locator('#customLoadModels').click()
+  await options.waitForFunction(() => document.querySelector('#customAIStatus').textContent.includes('enter a model ID directly') &&
+    !document.querySelector('#saveCustomAI').disabled)
+  await options.locator('#customModel').fill('local-model')
+  await options.locator('#saveCustomAI').click()
+  await options.waitForFunction(() => document.querySelector('#customAIStatus').textContent === 'AI service saved.')
+  await options.locator('#allowCloud').check()
+  await options.waitForFunction(async () => (await chrome.storage.local.get('allowCloud')).allowCloud)
+  await website.bringToFront()
+  await eventually(() => evaluate('document.querySelector("#serviceTarget").textContent.includes("local-model")'), 'saved local model appears in the panel')
+  await evaluate('document.querySelector("#summarizePage").click()')
+  await eventually(() => evaluate('document.querySelector("#summaryResult .overview")?.textContent === "Local model summary."'), 'manual model without a models endpoint or API key')
+    .catch(async error => { throw new Error(error.message + ' (' + await evaluate('document.querySelector("#summaryStatus").textContent') + ')') })
+  assert.equal(customCalls.at(-1).authorization, undefined)
+  assert.equal(customCalls.at(-1).request.model, 'local-model')
+  console.log('Custom models, direct summaries, selection, provider switching, cache isolation and keyless local API passed')
+
   protocol.close()
   protocol = undefined
   await context.close()
@@ -585,6 +678,10 @@ try {
   const reopened = await context.newPage()
   await reopened.goto(mindBase + '/options.html')
   await reopened.getByRole('heading', { name: /^Summary archive/ }).waitFor()
+  assert.equal(await reopened.locator('#aiProvider').inputValue(), 'custom')
+  assert.equal(await reopened.locator('#customBaseUrl').inputValue(), origin + '/local/v1')
+  assert.equal(await reopened.locator('#customKey').inputValue(), '')
+  assert.equal(await reopened.locator('#customModel').inputValue(), 'local-model')
   await reopened.locator('#archiveEntries .archive-item').filter({ hasText: 'Coastal Wetland Survey' }).click()
   await reopened.getByRole('dialog').waitFor()
   assert.match(await reopened.locator('#archiveReadBody .overview').textContent(), /Volunteers recorded/)

@@ -24,7 +24,7 @@
     </header>
 
     <nav id="steps" class="steps" data-msg-aria="setupProgress" hidden>
-      <button type="button" data-go-step="0" data-msg="accountTitle" aria-current="step"></button>
+      <button type="button" data-go-step="0" data-msg="aiProvider" aria-current="step"></button>
       <button type="button" data-go-step="1" data-msg="connectFoxdown"></button>
       <button type="button" data-go-step="2" data-msg="readyTitle"></button>
     </nav>
@@ -32,7 +32,14 @@
     <div id="settingsColumns" class="settings-columns">
       <div class="settings-preferences">
         <div class="account-model-group" data-step="0" hidden>
-          <section class="card settings-card" aria-labelledby="accountHeading">
+          <section class="card settings-card provider-settings" aria-labelledby="providerHeading">
+            <label id="providerHeading" for="aiProvider" data-msg="aiProvider"></label>
+            <select id="aiProvider">
+              <option value="foxmori" data-msg="foxmoriProvider"></option>
+              <option value="custom" data-msg="customProvider"></option>
+            </select>
+          </section>
+          <section id="foxmoriSettings" class="card settings-card" aria-labelledby="accountHeading">
             <header class="settings-card-top">
               <div>
                 <h2 id="accountHeading" data-msg="accountTitle"></h2>
@@ -74,12 +81,46 @@
             </details>
           </section>
 
+          <section id="customAISettings" class="card settings-card" aria-labelledby="customAIHeading" hidden>
+            <header class="settings-card-top">
+              <div>
+                <h2 id="customAIHeading" data-msg="customProvider"></h2>
+                <p class="muted" data-msg="customAIHint"></p>
+              </div>
+            </header>
+            <form id="customAIForm" class="server-form">
+              <div class="setting-field">
+                <label for="customBaseUrl" data-msg="aiBaseUrl"></label>
+                <input id="customBaseUrl" type="url" placeholder="https://api.example.com/v1" required autocomplete="off" spellcheck="false">
+              </div>
+              <div class="setting-field">
+                <label for="customKey" data-msg="customKey"></label>
+                <input id="customKey" type="password" maxlength="512" autocomplete="off" spellcheck="false">
+                <p class="muted" data-msg="optionalAIKey"></p>
+              </div>
+              <div class="setting-field">
+                <label for="customModel" data-msg="modelId"></label>
+                <div class="field-line">
+                  <input id="customModel" type="text" list="customModels" maxlength="200" required autocomplete="off" spellcheck="false">
+                  <button id="customLoadModels" type="button" data-msg="refreshModels"></button>
+                </div>
+                <datalist id="customModels"></datalist>
+                <p class="muted" data-msg="customModelHint"></p>
+              </div>
+              <div class="server-actions">
+                <button id="saveCustomAI" type="submit" class="primary" data-msg="saveCustomAI"></button>
+                <button id="removeCustomAI" type="button" class="quiet" data-msg="removeCustomAI" hidden></button>
+              </div>
+            </form>
+            <p id="customAIStatus" class="muted note" role="status" hidden></p>
+          </section>
+
           <section class="card settings-card" aria-labelledby="modelHeading">
             <header class="settings-card-top">
               <h2 id="modelHeading" data-msg="summaryModel"></h2>
             </header>
             <div class="model-fields">
-              <div class="setting-field">
+              <div id="foxmoriModelField" class="setting-field">
                 <label for="model" data-msg="model"></label>
                 <div class="field-line">
                   <select id="model"></select>
@@ -95,6 +136,7 @@
                 </select>
               </div>
             </div>
+            <p id="summaryDestination" class="muted note" hidden></p>
             <label class="permission-row">
               <input type="checkbox" id="allowCloud">
               <span>

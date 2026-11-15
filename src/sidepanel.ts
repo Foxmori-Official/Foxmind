@@ -1,4 +1,5 @@
 import './style.css'
+import { getAIService } from './ai-service'
 import { downloadExport } from './export-download'
 import { mergeResources, networkResources, queueResource } from './foxdown'
 import { captureExport, type ExportFormat } from './page-export'
@@ -168,11 +169,6 @@ async function generate(panel: SummaryPanel) {
   if (!target) return
   const useSelection = panel.kind === 'selection'
   cancelSummary(panel)
-  if (setupMessage) {
-    summaryStatus(panel, setupMessage, { setup: true })
-    return
-  }
-
   const generation = archiveGeneration
   const request = new AbortController()
   panel.request = request
@@ -186,7 +182,8 @@ async function generate(panel: SummaryPanel) {
     const settings = await getSettings()
     if (!isCurrent()) return
     const required = summarySetupMessage(settings)
-    if (required || !settings.credential) {
+    const service = getAIService(settings)
+    if (required || !service) {
       summaryStatus(panel, required || 'configure', { setup: true })
       return
     }
@@ -198,9 +195,8 @@ async function generate(panel: SummaryPanel) {
 
     const input = prepareInput(snapshot.title, snapshot.paragraphs, snapshot.limited)
     const language = settings.language === 'auto' ? uiLanguage() : settings.language
-    const key = settings.credential.key
     const fingerprint = await crypto.subtle.digest('SHA-256',
-      new TextEncoder().encode(JSON.stringify([key, settings.model, language, target.url, useSelection, input])),
+      new TextEncoder().encode(JSON.stringify([service.baseUrl, service.key, service.model, language, target.url, useSelection, input])),
     )
     const signature = [...new Uint8Array(fingerprint)].map(byte => byte.toString(16).padStart(2, '0')).join('')
     const stored = await readArchive(archiveScope)
@@ -210,7 +206,7 @@ async function generate(panel: SummaryPanel) {
     if (!entry) {
       summaryStatus(panel, 'generating')
       timeout = setTimeout(() => request.abort(new FoxmindError('modelTimeout')), 40_000)
-      const summary = await summarize(key, settings.model, language === 'zh' ? 'Simplified Chinese' : 'English', input, request.signal)
+      const summary = await summarize(service, language === 'zh' ? 'Simplified Chinese' : 'English', input, request.signal)
       clearTimeout(timeout)
       const ids = new Set(summary.points.flatMap(point => point.evidenceIds))
       entry = {
@@ -411,12 +407,15 @@ async function exportPage(format: ExportFormat) {
 }
 
 function summarySetupMessage(settings: Settings): string {
-  if (!settings.credential?.key || !settings.model) return 'configure'
+  if (!getAIService(settings)?.model) return 'configure'
   return settings.allowCloud ? '' : 'summaryPermissionRequired'
 }
 
 async function updateConfigured() {
-  setupMessage = summarySetupMessage(await getSettings())
+  const settings = await getSettings()
+  setupMessage = summarySetupMessage(settings)
+  const service = getAIService(settings)
+  showStatus(el('serviceTarget'), service ? t('summaryDestination') + ' · ' + new URL(service.baseUrl).host + (service.model ? ' · ' + service.model : '') : '')
   for (const panel of summaries) {
     if (panel.message === 'configure' || panel.message === 'summaryPermissionRequired') {
       summaryStatus(panel, setupMessage || (panel.displayed ? '' : panel.prompt), { setup: Boolean(setupMessage) })
@@ -479,7 +478,7 @@ async function initialize() {
       })
     }
     if (area !== 'local') return
-    if (['allowCloud', 'credential', 'credentialRevision', 'model', 'language', 'uiLocale'].some(key => key in changes)) {
+    if (['allowCloud', 'credential', 'credentialRevision', 'model', 'provider', 'customAI', 'language', 'uiLocale'].some(key => key in changes)) {
       for (const panel of summaries) {
         if (!panel.request) continue
         cancelSummary(panel)
@@ -488,6 +487,7 @@ async function initialize() {
       void updateConfigured()
     }
     if ('uiLocale' in changes) void initializeLocale().then(() => {
+      void updateConfigured()
       paintPageHeading()
       for (const panel of summaries) {
         showStatus(panel.status, panel.message ? t(panel.message) : '')

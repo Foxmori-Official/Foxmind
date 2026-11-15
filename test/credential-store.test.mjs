@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { applyAvailableModels, saveCredentialConfig, saveSelectedModel } from '../src/credential-store.ts'
+import {
+  applyAvailableModels, saveCredentialConfig, saveCustomAIConfig, saveSelectedModel, saveSummaryPermission, switchAIProvider,
+} from '../src/credential-store.ts'
 import { getSettings } from '../src/shared.ts'
 
 let saved
@@ -74,4 +76,50 @@ test('an issuance started with an unversioned saved configuration still succeeds
   assert.equal(issued.model, '')
   await applyAvailableModels(['issued-model'], issued)
   assert.equal((await getSettings()).model, 'issued-model')
+})
+
+test('switching providers preserves Foxmori credentials and invalidates pending Foxmori requests', async () => {
+  const pending = await getSettings()
+  const switched = await switchAIProvider('custom', pending)
+  assert.equal(switched.allowCloud, false)
+  const custom = await saveCustomAIConfig({ baseUrl: 'https://custom.example/v1', key: 'custom-key', model: 'custom-model' }, switched)
+  await assert.rejects(saveCredentialConfig({ key: 'issued-key' }, pending), changed)
+  await assert.rejects(applyAvailableModels(['obsolete-model'], pending), changed)
+  assert.equal(custom.credential.key, 'original-key')
+  assert.equal(custom.model, 'original-model')
+  const restored = await switchAIProvider('foxmori', custom)
+  assert.equal(restored.credential.key, 'original-key')
+  assert.equal(restored.customAI.model, 'custom-model')
+})
+
+test('changing the custom endpoint with the same key invalidates older configuration writes and resets consent', async () => {
+  const custom = await switchAIProvider('custom', await getSettings())
+  const previous = await saveCustomAIConfig({ baseUrl: 'https://old.example/v1', key: 'same-key', model: 'model' }, custom)
+  saved.allowCloud = true
+  const next = await saveCustomAIConfig({ baseUrl: 'http://localhost:1234/v1', key: 'same-key', model: 'model' }, previous)
+  await assert.rejects(saveCustomAIConfig(previous.customAI, previous), changed)
+  assert.equal(next.allowCloud, false)
+  assert.equal(next.customAI.baseUrl, 'http://localhost:1234/v1')
+})
+
+test('a local service can save and remove a configuration without an API key', async () => {
+  const custom = await switchAIProvider('custom', await getSettings())
+  const local = await saveCustomAIConfig({ baseUrl: 'http://127.0.0.1:1234', key: '', model: ' local-model ' }, custom)
+  assert.deepEqual(local.customAI, { baseUrl: 'http://127.0.0.1:1234/v1', key: '', model: 'local-model' })
+  const removed = await saveCustomAIConfig(null, local)
+  assert.equal(removed.customAI, null)
+  assert.equal(removed.credential.key, 'original-key')
+})
+
+test('consent from an older settings tab cannot authorize a different AI service', async () => {
+  const foxmori = await getSettings()
+  const custom = await switchAIProvider('custom', foxmori)
+  await assert.rejects(saveSummaryPermission(true, foxmori), changed)
+  const previous = await saveCustomAIConfig({ baseUrl: 'https://old.example/v1', key: 'key', model: 'model' }, custom)
+  await saveSummaryPermission(true, previous)
+  const next = await saveCustomAIConfig({ ...previous.customAI, baseUrl: 'https://new.example/v1' }, previous)
+  await assert.rejects(saveSummaryPermission(true, previous), changed)
+  assert.equal((await getSettings()).allowCloud, false)
+  await saveSummaryPermission(true, next)
+  assert.equal((await getSettings()).allowCloud, true)
 })

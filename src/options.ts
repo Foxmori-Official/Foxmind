@@ -3,11 +3,13 @@ import './settings.css'
 import template from './setup.html?raw'
 import { getSavedAccount, issueKey, openConsole, readAccount, type Account } from './account'
 import { initializeSummaryArchiveSettings } from './archive-settings'
+import { aiPermission, getAIService, validateCustomAI } from './ai-service'
 import {
-  applyAvailableModels, sameCredentialVersion, saveCredentialConfig, saveSelectedModel, type CredentialSnapshot,
+  applyAvailableModels, sameCredentialVersion, saveCredentialConfig, saveCustomAIConfig, saveSelectedModel, saveSummaryPermission,
+  switchAIProvider, type CredentialSnapshot,
 } from './credential-store'
 import { checkFoxdown, normalizeServer, serverPermission } from './foxdown'
-import { getSettings, FoxmindError, type Credential, type Settings } from './shared'
+import { getSettings, FoxmindError, type AIProvider, type AIService, type Credential, type Settings } from './shared'
 import { fetchModels } from './summary'
 import { el, errorCopy, initializeLocale, t } from './ui'
 
@@ -30,6 +32,14 @@ const issueButton = el<HTMLButtonElement>('issueKey')
 const loadButton = el<HTMLButtonElement>('refreshModels')
 const removeButton = el<HTMLButtonElement>('removeKey')
 const saveKeyButton = el<HTMLButtonElement>('saveKey')
+const provider = el<HTMLSelectElement>('aiProvider')
+const customBaseUrl = el<HTMLInputElement>('customBaseUrl')
+const customKey = el<HTMLInputElement>('customKey')
+const customModel = el<HTMLInputElement>('customModel')
+const customStatus = el('customAIStatus')
+const customLoad = el<HTMLButtonElement>('customLoadModels')
+const customSave = el<HTMLButtonElement>('saveCustomAI')
+const customRemove = el<HTMLButtonElement>('removeCustomAI')
 
 let account: Account | undefined
 let lastAccount: string | undefined
@@ -61,6 +71,14 @@ function renderAccount() {
 }
 
 function renderSettings() {
+  const custom = settings.provider === 'custom'
+  provider.value = settings.provider
+  provider.disabled = busy
+  el('foxmoriSettings').hidden = custom
+  el('customAISettings').hidden = !custom
+  el('foxmoriModelField').hidden = custom
+  for (const control of [customBaseUrl, customKey, customModel, customLoad, customSave, customRemove]) control.disabled = busy
+  customRemove.hidden = !settings.customAI
   const key = settings.credential
   const owner = account?.label || lastAccount
   const prefix = owner ? owner + ' · ' : ''
@@ -76,14 +94,31 @@ function renderSettings() {
   removeButton.hidden = !key
   loadButton.disabled = busy || !key
   removeButton.disabled = busy
-  el<HTMLButtonElement>('next').disabled = step === 0 && (!key || !settings.model || !settings.allowCloud)
+  const service = getAIService(settings)
+  const destination = service ? t('summaryDestination') + ' · ' + new URL(service.baseUrl).host + (service.model ? ' · ' + service.model : '') : ''
+  status(el('summaryDestination'), destination)
+  el<HTMLButtonElement>('next').disabled = step === 0 && (!service?.model || !settings.allowCloud)
+}
+
+function renderCustomConfig() {
+  customBaseUrl.value = settings.customAI?.baseUrl ?? ''
+  customKey.value = settings.customAI?.key ?? ''
+  customModel.value = settings.customAI?.model ?? ''
+  el('customModels').replaceChildren()
 }
 
 function receiveSettings(next: Settings) {
   const changed = !sameCredentialVersion(settings, next)
+  const customChanged = JSON.stringify(settings.customAI) !== JSON.stringify(next.customAI) || settings.provider !== next.provider
   settings = next
   if (changed) models = []
   if (next.model && !models.includes(next.model)) models.push(next.model)
+  allowCloud.checked = next.allowCloud
+  language.value = next.language
+  if (customChanged) {
+    renderCustomConfig()
+    status(customStatus)
+  }
   renderAccount()
   renderSettings()
 }
@@ -148,9 +183,10 @@ async function connect(silent = false) {
   }, silent)
 }
 
-async function refreshModels(configuration: CredentialSnapshot) {
-  if (!configuration.credential) throw new FoxmindError('invalidKey')
-  const visible = await fetchModels(configuration.credential.key)
+async function refreshModels(configuration: Settings) {
+  const service = getAIService(configuration)
+  if (!service) throw new FoxmindError('invalidKey')
+  const visible = await fetchModels(service)
   const saved = await applyAvailableModels(visible, configuration)
   await reloadSettings()
   if (!sameCredentialVersion(settings, saved)) throw new FoxmindError('credentialChanged')
@@ -171,7 +207,25 @@ async function saveCredential(credential: Credential, expected?: CredentialSnaps
   }
 }
 
-void initialize().catch(error => status(accountStatus, errorCopy(error)))
+function customOperation(operation: (service: AIService, expected: Settings) => Promise<void>) {
+  if (busy) return
+  let service: AIService
+  try {
+    service = validateCustomAI({ baseUrl: customBaseUrl.value, key: customKey.value, model: customModel.value })
+  } catch (error) {
+    status(customStatus, errorCopy(error))
+    return
+  }
+  const expected = settings
+  void perform(customStatus, async () => {
+    const granted = await chrome.permissions.request({ origins: [aiPermission(service.baseUrl)] })
+    if (!granted) throw new FoxmindError('aiPermission')
+    if (!sameCredentialVersion(await getSettings(), expected)) throw new FoxmindError('credentialChanged')
+    await operation(service, expected)
+  })
+}
+
+void initialize().catch(error => status(modelStatus, errorCopy(error)))
 
 async function initialize() {
   await initializeLocale()
@@ -184,13 +238,15 @@ async function initialize() {
   el<HTMLSelectElement>('uiLocale').value = settings.uiLocale
   allowCloud.checked = settings.allowCloud
   models = settings.model ? [settings.model] : []
+  renderCustomConfig()
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return
     const next = { ...settings }
-    for (const key of ['credential', 'credentialRevision', 'model'] as const) {
+    const keys = ['credential', 'credentialRevision', 'model', 'provider', 'customAI', 'allowCloud', 'language'] as const
+    for (const key of keys) {
       if (changes[key]) Object.assign(next, { [key]: changes[key].newValue })
     }
-    if ('credential' in changes || 'credentialRevision' in changes || 'model' in changes) {
+    if (keys.some(key => key in changes)) {
       credentialUpdates++
       receiveSettings(next)
     }
@@ -211,6 +267,48 @@ async function initialize() {
   renderAccount()
   renderServer()
 
+  provider.addEventListener('change', () => {
+    const next = provider.value as AIProvider
+    const expected = settings
+    void perform(modelStatus, async () => {
+      await switchAIProvider(next, expected)
+      await reloadSettings()
+      status(modelStatus, t('providerSaved'))
+    }).then(() => {
+      if (settings.provider === 'foxmori') void connect(true)
+    })
+  })
+  customLoad.addEventListener('click', () => {
+    customOperation(async (service, expected) => {
+      let available: string[]
+      try { available = await fetchModels(service) } catch (error) {
+        if (!sameCredentialVersion(await getSettings(), expected)) throw new FoxmindError('credentialChanged')
+        status(customStatus, errorCopy(error) + ' ' + t('customModelHint'))
+        return
+      }
+      await reloadSettings()
+      if (!sameCredentialVersion(settings, expected)) throw new FoxmindError('credentialChanged')
+      el('customModels').replaceChildren(...available.map(id => new Option(id, id)))
+      if (!customModel.value.trim() && available.length === 1) customModel.value = available[0]
+      status(customStatus, t('customModelsReady'))
+    })
+  })
+  el<HTMLFormElement>('customAIForm').addEventListener('submit', event => {
+    event.preventDefault()
+    customOperation(async (service, expected) => {
+      await saveCustomAIConfig(service, expected)
+      await reloadSettings()
+      status(customStatus, t('customAISaved'))
+    })
+  })
+  customRemove.addEventListener('click', () => {
+    const expected = settings
+    void perform(customStatus, async () => {
+      await saveCustomAIConfig(null, expected)
+      await reloadSettings()
+      status(customStatus, t('customAIRemoved'))
+    })
+  })
   el('uiLocale').addEventListener('change', async () => {
     await chrome.storage.local.set({ uiLocale: el<HTMLSelectElement>('uiLocale').value })
     location.reload()
@@ -260,10 +358,11 @@ async function initialize() {
   el<HTMLFormElement>('manualForm').addEventListener('submit', event => {
     event.preventDefault()
     const key = manualKey.value.trim()
+    const expected = settings
     manualKey.value = ''
     void perform(accountStatus, async () => {
       if (!/^[^\s•*]{1,512}$/.test(key)) throw new FoxmindError('invalidKey')
-      await saveCredential({ key })
+      await saveCredential({ key }, expected)
     })
   })
   loadButton.addEventListener('click', () => {
@@ -271,8 +370,9 @@ async function initialize() {
     if (configuration.credential) void perform(modelStatus, () => refreshModels(configuration))
   })
   removeButton.addEventListener('click', () => {
+    const expected = settings
     void perform(modelStatus, async () => {
-      await saveCredentialConfig(null)
+      await saveCredentialConfig(null, expected)
       await reloadSettings()
       status(accountStatus)
       status(modelStatus, t('setupSaved'))
@@ -280,13 +380,15 @@ async function initialize() {
   })
   for (const control of [model, language, allowCloud]) {
     control.addEventListener('change', async () => {
-      const patch: Partial<Settings> = control === language ? { language: language.value as Settings['language'] }
-        : { allowCloud: allowCloud.checked }
       try {
         if (control === model) {
           await saveSelectedModel(model.value, settings)
           await reloadSettings()
+        } else if (control === allowCloud) {
+          await saveSummaryPermission(allowCloud.checked, settings)
+          await reloadSettings()
         } else {
+          const patch = { language: language.value as Settings['language'] }
           await chrome.storage.local.set(patch)
           settings = { ...settings, ...patch }
         }
@@ -334,5 +436,5 @@ async function initialize() {
       status(serverStatus, errorCopy(error))
     }
   })
-  void connect(true)
+  if (settings.provider === 'foxmori') void connect(true)
 }
