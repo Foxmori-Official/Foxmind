@@ -7,7 +7,7 @@
 
 ## Quick install
 
-1. Download and extract foxmind-0.0.1.zip from [Releases](https://github.com/Foxmori-Official/Foxmind/releases/latest).
+1. Download and extract foxmind-0.0.2.zip from [Releases](https://github.com/Foxmori-Official/Foxmind/releases/latest).
 2. Open chrome://extensions or edge://extensions, enable Developer mode and load the folder containing manifest.json with **Load unpacked**.
 3. Choose an AI service. For Foxmori, sign in at [foxmori.com](https://foxmori.com/#models), read your account and obtain a key, or enter an existing Foxmori key. For another provider, select Custom AI service.
 4. Choose a chat model and enable page content permission. Pin Foxmind, open a webpage, click its icon and choose **Summarize page**.

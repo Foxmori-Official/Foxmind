@@ -5,7 +5,8 @@ import { join, resolve } from 'node:path'
 import sharp from 'sharp'
 import { chromium } from 'playwright'
 
-const output = resolve('release/chrome-web-store-0.0.1/images')
+const { version } = JSON.parse(await readFile('package.json', 'utf8'))
+const output = resolve('release/chrome-web-store-' + version + '/images')
 await mkdir(output, { recursive: true })
 const sourceIcon = await sharp('public/icons/foxmind.svg').resize(128, 128).png().toBuffer()
 const icon = await sharp(sourceIcon).extract({ left: 4, top: 4, width: 120, height: 120 })
