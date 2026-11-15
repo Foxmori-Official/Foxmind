@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="google-site-verification" content="m2I-fYK1jDexOXoJn90-fHpHBh9yephnHLVkqYpbvm0">
+  <meta name="description" content="Foxmind 浏览器扩展，在侧边栏总结网页与选中文字，搜索本机摘要存档，导出网页并联动 Foxdown 保存资源。">
+  <link rel="canonical" href="https://foxmori-official.github.io/Foxmind/">
+  <link rel="icon" type="image/svg+xml" href="./assets/foxmind.svg">
+  <link rel="stylesheet" href="./site.css">
+  <title>Foxmind · 网页摘要与资源保存</title>
+</head>
+<body>
+  <header class="site-header">
+    <a class="wordmark" href="./"><img src="./assets/foxmind.svg" width="38" height="38" alt="">Foxmind</a>
+    <nav aria-label="网站导航">
+      <a href="./privacy.html">隐私政策</a>
+      <a href="https://github.com/Foxmori-Official/Foxmind">GitHub ↗</a>
+    </nav>
+  </header>
+  <main>
+    <section class="hero">
+      <img class="hero-icon" src="./assets/foxmind.svg" width="104" height="104" alt="">
+      <h1>读懂网页，<br>收好每一次发现。</h1>
+      <p class="lead">在浏览器侧边栏总结网页和选中文字，<br class="wide">回看本机摘要存档，导出网页与保存资源。</p>
+      <div class="actions">
+        <a class="primary" href="https://github.com/Foxmori-Official/Foxmind/releases/latest">下载 Foxmind</a>
+        <a class="secondary" href="#install">安装与使用</a>
+      </div>
+      <p class="note">适用于 Chrome 和 Edge · 简体中文 / English</p>
+    </section>
+    <section class="features" aria-label="主要功能">
+      <article><h2>摘要有原文可查</h2><p>整页与选区摘要独立展示，展开要点查看对应原文。切换标签页后，已完成的结果仍然保留。</p></article>
+      <article><h2>读过的内容，再找到</h2><p>在本机存档中搜索标题、网址、摘要与原文依据。打开记录回看，也可以删除或清空存档。</p></article>
+      <article><h2>把网页带走</h2><p>导出 HTML 或 Markdown，通过 Foxdown 服务器保存网页附件和有权访问的媒体资源。</p></article>
+    </section>
+    <section id="install" class="install">
+      <h2>安装后，开始阅读</h2>
+      <ol>
+        <li>从 GitHub Releases 下载并解压安装包。</li>
+        <li>打开浏览器的扩展管理页，开启开发者模式，选择「加载已解压的扩展程序」，加载含 manifest.json 的文件夹。</li>
+        <li>按引导连接狐森账户或填写 API Key，选择模型并开启网页内容授权。</li>
+        <li>点击工具栏中的 Foxmind 打开侧边栏，再点击「总结当前页」。</li>
+      </ol>
+      <p>摘要功能使用狐森模型服务，需要有效密钥、可用模型与额度。网页导出可独立使用。连接 Foxdown 后可发送下载任务。</p>
+      <p>标题和提取的文字会在用户主动请求摘要时发送至狐森模型服务。普通窗口的摘要存档在当前浏览器配置中共用，切换账户后仍可查看。<a href="./privacy.html">阅读隐私政策</a></p>
+    </section>
+    <section class="english" lang="en">
+      <h2>Read, summarize and save with Foxmind.</h2>
+      <p>Summarize pages and selections in your browser side panel. Revisit a searchable local archive, export HTML or Markdown, and send resources to your Foxdown server.</p>
+      <p>AI summaries require a Foxmori API key, an available model and explicit page content permission.</p>
+      <a href="https://github.com/Foxmori-Official/Foxmind/blob/main/docs/README.en.md">English installation guide ↗</a>
+    </section>
+  </main>
+  <footer>
+    <span>Foxmind · Foxmori-Official</span>
+    <div><a href="./privacy.html">隐私 / Privacy</a><a href="https://github.com/Foxmori-Official/Foxmind/issues">支持 / Support</a><a href="https://foxmori.com/">狐森</a></div>
+  </footer>
+</body>
+</html>
