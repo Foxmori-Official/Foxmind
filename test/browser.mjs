@@ -593,8 +593,15 @@ try {
   assert.equal(await evaluate('document.querySelector(".resource-row a").href'), pageOrigin + '/files/report.pdf?case=fixture')
   console.log('Direct-link fallback passed')
 
+  async function summarizeArticle() {
+    // Native tab activation and extension storage notifications are asynchronous.
+    // A script click on a disabled button silently does nothing.
+    await eventually(() => evaluate('document.querySelector("#pageTitle").textContent === "Forest Restoration Study" && !document.querySelector("#summarizePage").disabled && document.querySelector("#summaryConfigure").hidden'), 'article summary controls ready after switching tabs')
+    await evaluate('document.querySelector("#summarizePage").click()')
+  }
+
   // Use the same key and model at a different API base to verify cache isolation.
-  await evaluate('document.querySelector("#summarizePage").click()')
+  await summarizeArticle()
   await eventually(() => evaluate('document.querySelector("#summaryResult .overview")?.textContent.includes("Native trees")'), 'Foxmori summary before switching providers')
   const beforeCustom = modelCalls.length
   await options.bringToFront()
@@ -615,7 +622,7 @@ try {
   await options.waitForFunction(async () => (await chrome.storage.local.get('allowCloud')).allowCloud)
   await website.bringToFront()
   await eventually(() => evaluate('document.querySelector("#serviceTarget").textContent.includes("127.0.0.1")'), 'custom destination in the side panel')
-  await evaluate('document.querySelector("#summarizePage").click()')
+  await summarizeArticle()
   await eventually(() => evaluate('document.querySelector("#summaryResult .overview")?.textContent === "Custom service summary."'), 'custom API summary replaces the page result')
     .catch(async error => { throw new Error(error.message + ' (' + JSON.stringify({
       status: await evaluate('document.querySelector("#summaryStatus").textContent'),
@@ -649,7 +656,7 @@ try {
   await options.waitForFunction(async () => (await chrome.storage.local.get('allowCloud')).allowCloud)
   await website.bringToFront()
   await eventually(() => evaluate('document.querySelector("#serviceTarget").textContent.includes("api.foxmori.com")'), 'switch restores Foxmori destination')
-  await evaluate('document.querySelector("#summarizePage").click()')
+  await summarizeArticle()
   await eventually(() => evaluate('document.querySelector("#summaryResult .overview")?.textContent.includes("Native trees")'), 'Foxmori uses its own cached result')
   assert.equal(modelCalls.length, beforeCustom)
 
@@ -669,7 +676,7 @@ try {
   await options.waitForFunction(async () => (await chrome.storage.local.get('allowCloud')).allowCloud)
   await website.bringToFront()
   await eventually(() => evaluate('document.querySelector("#serviceTarget").textContent.includes("local-model")'), 'saved local model appears in the panel')
-  await evaluate('document.querySelector("#summarizePage").click()')
+  await summarizeArticle()
   await eventually(() => evaluate('document.querySelector("#summaryResult .overview")?.textContent === "Local model summary."'), 'manual model without a models endpoint or API key')
     .catch(async error => { throw new Error(error.message + ' (' + await evaluate('document.querySelector("#summaryStatus").textContent') + ')') })
   assert.equal(customCalls.at(-1).authorization, undefined)
