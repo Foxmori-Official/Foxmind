@@ -658,6 +658,12 @@ try {
   await eventually(() => evaluate('document.querySelector("#serviceTarget").textContent.includes("api.foxmori.com")'), 'switch restores Foxmori destination')
   await summarizeArticle()
   await eventually(() => evaluate('document.querySelector("#summaryResult .overview")?.textContent.includes("Native trees")'), 'Foxmori uses its own cached result')
+    .catch(async error => { throw new Error(error.message + ' (' + JSON.stringify({
+      status: await evaluate('document.querySelector("#summaryStatus").textContent'),
+      page: await evaluate('document.querySelector("#pageTitle").textContent'),
+      overview: await evaluate('document.querySelector("#summaryResult .overview")?.textContent'),
+      modelCalls: modelCalls.length,
+    }) + ')') })
   assert.equal(modelCalls.length, beforeCustom)
 
   await options.bringToFront()

@@ -496,15 +496,17 @@ async function initialize() {
     if (area !== 'local') return
     if (summarySettingKeys.some(key => key in changes)) {
       settingsGeneration++
-      for (const panel of summaries) {
-        if (!panel.request || !panel.configuration) continue
-        // Storage notifications can arrive after a request has read the new
-        // configuration. Only invalidate a request still using older values.
-        if (!summarySettingKeys.some(key => key in changes &&
-          JSON.stringify(panel.configuration![key]) !== JSON.stringify(changes[key].newValue))) continue
-        cancelSummary(panel)
-        summaryStatus(panel, 'summarySettingsChanged', { retry: true })
-      }
+      // Several queued notifications may describe intermediate configurations.
+      // Compare requests with the latest saved values rather than that event.
+      void readSummarySettings().then(current => {
+        for (const panel of summaries) {
+          if (!panel.request || !panel.configuration) continue
+          if (!summarySettingKeys.some(key =>
+            JSON.stringify(panel.configuration![key]) !== JSON.stringify(current[key]))) continue
+          cancelSummary(panel)
+          summaryStatus(panel, 'summarySettingsChanged', { retry: true })
+        }
+      })
       void updateConfigured()
     }
     if ('uiLocale' in changes) void initializeLocale().then(() => {
