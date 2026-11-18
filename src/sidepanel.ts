@@ -60,7 +60,6 @@ let activePage: ActivePage | undefined
 let tabQuery = 0
 let settingsGeneration = 0
 const summarySettingKeys = ['allowCloud', 'credential', 'credentialRevision', 'model', 'provider', 'customAI', 'language', 'uiLocale'] as const
-let setupMessage = 'configure'
 let archiveGeneration = emptyArchive.generation
 let exporting = false
 let resourceRequest = 0
@@ -84,7 +83,12 @@ function summaryStatus(panel: SummaryPanel, key: string, options: { setup?: bool
 
 function paintControls() {
   const pageReady = !!activePage && activePage.readable !== undefined
-  for (const panel of summaries) panel.button.disabled = panel.retry.disabled = !pageReady
+  for (const panel of summaries) {
+    panel.button.disabled = !panel.request && !pageReady
+    panel.retry.disabled = !pageReady
+    panel.button.dataset.msg = panel.request ? 'cancel' : panel.kind === 'page' ? 'summarizePage' : 'summarizeSelection'
+    panel.button.textContent = t(panel.button.dataset.msg)
+  }
   for (const button of exportButtons) button.disabled = !pageReady || exporting
   refresh.disabled = !pageReady || scanning
 }
@@ -110,6 +114,7 @@ function cancelSummary(panel: SummaryPanel) {
   panel.request?.abort()
   panel.request = undefined
   panel.configuration = undefined
+  paintControls()
 }
 
 async function readSummarySettings(): Promise<Settings> {
@@ -177,15 +182,19 @@ async function captureSummary(target: ActivePage, useSelection: boolean): Promis
 }
 
 async function generate(panel: SummaryPanel) {
+  if (panel.request) {
+    cancelSummary(panel)
+    summaryStatus(panel, 'summaryCancelled', { retry: true })
+    return
+  }
   const target = activePage
   if (!target) return
   const useSelection = panel.kind === 'selection'
-  cancelSummary(panel)
   const generation = archiveGeneration
   const request = new AbortController()
   panel.request = request
   const isCurrent = () => panel.request === request
-  let timeout: ReturnType<typeof setTimeout> | undefined
+  paintControls()
   summaryStatus(panel, 'reading')
   try {
     const needsRescan = await requestPageAccess(target)
@@ -218,9 +227,7 @@ async function generate(panel: SummaryPanel) {
     const fresh = !entry
     if (!entry) {
       summaryStatus(panel, 'generating')
-      timeout = setTimeout(() => request.abort(new FoxmindError('modelTimeout')), 40_000)
       const summary = await summarize(service, language === 'zh' ? 'Simplified Chinese' : 'English', input, request.signal)
-      clearTimeout(timeout)
       const ids = new Set(summary.points.flatMap(point => point.evidenceIds))
       entry = {
         id: crypto.randomUUID(), signature, summary, title: snapshot.title, url: target.url, selected: useSelection, limited: input.limited,
@@ -242,11 +249,7 @@ async function generate(panel: SummaryPanel) {
     const code = reason instanceof FoxmindError ? reason.code : 'modelFailed'
     summaryStatus(panel, code, { retry: true, setup: code === 'invalidKey' || code === 'modelUnavailable' })
   } finally {
-    clearTimeout(timeout)
-    if (isCurrent()) {
-      panel.request = undefined
-      panel.configuration = undefined
-    }
+    if (isCurrent()) cancelSummary(panel)
   }
 }
 
@@ -429,10 +432,15 @@ function summarySetupMessage(settings: Settings): string {
 
 async function updateConfigured() {
   const settings = await readSummarySettings()
-  setupMessage = summarySetupMessage(settings)
+  const setupMessage = summarySetupMessage(settings)
   const service = getAIService(settings)
   showStatus(el('serviceTarget'), service ? t('summaryDestination') + ' · ' + new URL(service.baseUrl).host + (service.model ? ' · ' + service.model : '') : '')
   for (const panel of summaries) {
+    if (panel.request && panel.configuration && summarySettingKeys.some(key =>
+      JSON.stringify(panel.configuration![key]) !== JSON.stringify(settings[key]))) {
+      cancelSummary(panel)
+      summaryStatus(panel, 'summarySettingsChanged', { retry: true })
+    }
     if (panel.message === 'configure' || panel.message === 'summaryPermissionRequired') {
       summaryStatus(panel, setupMessage || (panel.displayed ? '' : panel.prompt), { setup: Boolean(setupMessage) })
     }
@@ -496,17 +504,6 @@ async function initialize() {
     if (area !== 'local') return
     if (summarySettingKeys.some(key => key in changes)) {
       settingsGeneration++
-      // Several queued notifications may describe intermediate configurations.
-      // Compare requests with the latest saved values rather than that event.
-      void readSummarySettings().then(current => {
-        for (const panel of summaries) {
-          if (!panel.request || !panel.configuration) continue
-          if (!summarySettingKeys.some(key =>
-            JSON.stringify(panel.configuration![key]) !== JSON.stringify(current[key]))) continue
-          cancelSummary(panel)
-          summaryStatus(panel, 'summarySettingsChanged', { retry: true })
-        }
-      })
       void updateConfigured()
     }
     if ('uiLocale' in changes) void initializeLocale().then(() => {

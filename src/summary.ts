@@ -2,6 +2,8 @@ import { FoxmindError, type AIService, type Paragraph } from './shared.ts'
 import { aiPermission, normalizeAIBaseUrl } from './ai-service.ts'
 
 const inputLimit = 14_000
+// Slow reasoning models share the same ten-minute budget as Foxtranslate.
+export const AI_REQUEST_TIMEOUT_MS = 600_000
 
 interface NumberedParagraph {
   id: number
@@ -77,12 +79,12 @@ export function parseSummary(raw: unknown, input: SummaryInput): Summary {
   return { overview: overview.trim(), points: checked }
 }
 
-async function request(path: string, service: AIService, signal: AbortSignal, body?: unknown): Promise<unknown> {
+async function request(path: string, service: AIService, signal?: AbortSignal, body?: unknown): Promise<unknown> {
+  signal = AbortSignal.any([AbortSignal.timeout(AI_REQUEST_TIMEOUT_MS), ...(signal ? [signal] : [])])
   const baseUrl = normalizeAIBaseUrl(service.baseUrl)
   if (!await chrome.permissions.contains({ origins: [aiPermission(baseUrl)] })) throw new FoxmindError('aiPermission')
-  let response: Response
   try {
-    response = await fetch(baseUrl + path, {
+    const response = await fetch(baseUrl + path, {
       method: body ? 'POST' : 'GET',
       headers: {
         ...(service.key ? { Authorization: 'Bearer ' + service.key } : {}),
@@ -95,20 +97,21 @@ async function request(path: string, service: AIService, signal: AbortSignal, bo
       cache: 'no-store',
       signal,
     })
+    if (response.status === 401) throw new FoxmindError('invalidKey')
+    if (response.status === 402 || response.status === 429) throw new FoxmindError('modelQuota')
+    if (response.status === 403 || response.status === 404) throw new FoxmindError('modelUnavailable')
+    if (!response.ok) throw new FoxmindError('modelFailed')
+    const value = await response.json() as { error?: unknown }
+    if (value?.error) throw new FoxmindError('modelFailed')
+    return value
   } catch (error) {
-    if (signal.aborted) throw error
+    if (signal.reason?.name === 'TimeoutError') throw new FoxmindError('modelTimeout')
+    if (signal.aborted || error instanceof FoxmindError) throw error
     throw new FoxmindError('aiUnavailable')
   }
-  if (response.status === 401) throw new FoxmindError('invalidKey')
-  if (response.status === 402 || response.status === 429) throw new FoxmindError('modelQuota')
-  if (response.status === 403 || response.status === 404) throw new FoxmindError('modelUnavailable')
-  if (!response.ok) throw new FoxmindError('modelFailed')
-  const value = await response.json() as { error?: unknown }
-  if (value?.error) throw new FoxmindError('modelFailed')
-  return value
 }
 
-export async function fetchModels(service: AIService, signal = AbortSignal.timeout(15_000)): Promise<string[]> {
+export async function fetchModels(service: AIService, signal?: AbortSignal): Promise<string[]> {
   const result = await request('/models', service, signal) as { data?: { id?: unknown }[] }
   const values = Array.isArray(result?.data) ? result.data.map(model => model?.id) : []
   const models = [...new Set(values.filter((id): id is string => typeof id === 'string' && Boolean(id.trim())))].sort()

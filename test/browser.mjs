@@ -166,13 +166,14 @@ try {
     let result
     if (req.url === '/api/console/user/profile') result = { id: 12, email: 'fixture@example.test' }
     else if (req.url === '/api/console/groups/available') result = [{ id: 7, name: 'Fixture group' }]
-    else if (req.url === '/api/console/foxmind/key' && req.method === 'POST') {
+    else if (req.url === '/api/console/keys' && req.method === 'POST') {
       const requested = JSON.parse(await body(req))
+      assert.equal(requested.name, 'Foxmind')
       if (requested.account_id !== 12 || requested.group_id !== 7) return json(res, {}, 409)
       keyIssued = true
       result = { key: fixtureKey }
     } else return json(res, {}, 404)
-    if (req.url === '/api/console/foxmind/key' && pauseNextKeyReply) {
+    if (req.url === '/api/console/keys' && pauseNextKeyReply) {
       const paused = pauseNextKeyReply
       pauseNextKeyReply = undefined
       paused.started = true
@@ -299,7 +300,7 @@ try {
 
   const editor = await context.newPage()
   await editor.goto(mindBase + '/options.html')
-  await editor.waitForFunction(() => document.querySelector('#accountState')?.textContent === 'Signed-in account' &&
+  await editor.waitForFunction(() => document.querySelector('#accountState')?.textContent === 'Last connected account' &&
     !document.querySelector('#readAccount').disabled)
   async function saveManualKey(key, expectedModel) {
     await editor.bringToFront()
@@ -340,7 +341,7 @@ try {
   await eventually(() => delayedModels.started, 'old key model response is delayed')
   await saveManualKey(fixtureKey, 'fixture-chat')
   delayedModels.resume()
-  await options.waitForFunction(() => document.querySelector('#modelStatus').textContent.includes('latest settings have been kept') &&
+  await options.waitForFunction(() => document.querySelector('#model').value === 'fixture-chat' &&
     !document.querySelector('#readAccount').disabled)
   assert.equal(await options.locator('#model').inputValue(), 'fixture-chat')
 

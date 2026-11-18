@@ -1,7 +1,7 @@
 import test from 'node:test'
 import assert from 'node:assert/strict'
 import { normalizeAIBaseUrl, getAIService } from '../src/ai-service.ts'
-import { fetchModels, summarize } from '../src/summary.ts'
+import { AI_REQUEST_TIMEOUT_MS, fetchModels, summarize } from '../src/summary.ts'
 import { API } from '../src/shared.ts'
 
 const originalFetch = globalThis.fetch
@@ -70,4 +70,38 @@ test('custom Chat Completions summaries retain the source citation validation', 
   assert.equal(request.model, 'manual-model')
   assert.equal(request.stream, false)
   assert.deepEqual(JSON.parse(request.messages[1].content), { title: input.title, paragraphs: input.paragraphs })
+})
+
+test('model discovery and summaries share a slow-model budget, including response-body timeouts', async () => {
+  assert.equal(AI_REQUEST_TIMEOUT_MS, 600_000)
+  const originalTimeout = AbortSignal.timeout
+  const deadlines = []
+  AbortSignal.timeout = ms => {
+    assert.equal(ms, AI_REQUEST_TIMEOUT_MS)
+    const controller = new AbortController()
+    deadlines.push(controller)
+    return controller.signal
+  }
+  const service = { baseUrl: 'https://custom.example/v1', key: 'key', model: 'model' }
+  globalThis.fetch = async (_url, { signal }) => ({ ok: true, status: 200, json: () => new Promise((_, reject) => {
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    queueMicrotask(() => deadlines.at(-1).abort(new DOMException('Deadline reached', 'TimeoutError')))
+  }) })
+  try {
+    await assert.rejects(fetchModels(service), error => error.code === 'modelTimeout')
+    await assert.rejects(summarize(service, 'English', { title: '', paragraphs: [], limited: false }, new AbortController().signal), error => error.code === 'modelTimeout')
+    assert.equal(deadlines.length, 2)
+  } finally { AbortSignal.timeout = originalTimeout }
+})
+
+test('cancelling a summary aborts the model request without retry', async () => {
+  const controller = new AbortController()
+  let count = 0
+  globalThis.fetch = async (_url, { signal }) => new Promise((_, reject) => {
+    count++
+    signal.addEventListener('abort', () => reject(signal.reason), { once: true })
+    queueMicrotask(() => controller.abort())
+  })
+  await assert.rejects(summarize({ baseUrl: 'https://custom.example/v1', key: 'key', model: 'model' }, 'English', { title: '', paragraphs: [], limited: false }, controller.signal), error => error.name === 'AbortError')
+  assert.equal(count, 1)
 })

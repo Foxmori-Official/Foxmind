@@ -49,6 +49,7 @@ let busy = false
 let returningFromConsole = false
 let step = 0
 let credentialUpdates = 0
+let modelRequest: AbortController | undefined
 
 function status(element: HTMLElement, message = '') {
   element.textContent = message
@@ -56,6 +57,7 @@ function status(element: HTMLElement, message = '') {
 }
 
 function renderAccount() {
+  readButton.disabled = saveKeyButton.disabled = groups.disabled = busy
   const label = account?.label || lastAccount || settings.credential?.label
   accountLabel.hidden = !label
   accountLabel.textContent = label ?? ''
@@ -71,6 +73,7 @@ function renderAccount() {
 }
 
 function renderSettings() {
+  renderAccount()
   const custom = settings.provider === 'custom'
   provider.value = settings.provider
   provider.disabled = busy
@@ -92,7 +95,7 @@ function renderSettings() {
   model.value = settings.model
   model.disabled = busy || !models.length
   removeButton.hidden = !key
-  loadButton.disabled = busy || !key
+  loadButton.disabled = busy || !key || Boolean(modelRequest)
   removeButton.disabled = busy
   const service = getAIService(settings)
   const destination = service ? t('summaryDestination') + ' · ' + new URL(service.baseUrl).host + (service.model ? ' · ' + service.model : '') : ''
@@ -111,7 +114,12 @@ function receiveSettings(next: Settings) {
   const changed = !sameCredentialVersion(settings, next)
   const customChanged = JSON.stringify(settings.customAI) !== JSON.stringify(next.customAI) || settings.provider !== next.provider
   settings = next
-  if (changed) models = []
+  if (changed) {
+    models = []
+    modelRequest?.abort()
+    modelRequest = undefined
+    status(modelStatus)
+  }
   if (next.model && !models.includes(next.model)) models.push(next.model)
   allowCloud.checked = next.allowCloud
   language.value = next.language
@@ -119,12 +127,11 @@ function receiveSettings(next: Settings) {
     renderCustomConfig()
     status(customStatus)
   }
-  renderAccount()
   renderSettings()
 }
 
 async function reloadSettings() {
-  const before = credentialUpdates
+  const before = ++credentialUpdates
   const latest = await getSettings()
   if (credentialUpdates === before) receiveSettings(latest)
 }
@@ -152,47 +159,54 @@ function renderServer() {
   el<HTMLButtonElement>('disconnectServer').disabled = !connected
 }
 
-async function perform(messageElement: HTMLElement, operation: () => Promise<void>, silent = false) {
+async function perform(messageElement: HTMLElement, operation: () => Promise<void>) {
   if (busy) return
   busy = true
-  readButton.disabled = saveKeyButton.disabled = issueButton.disabled = true
-  groups.disabled = true
   renderSettings()
-  if (!silent) status(messageElement, t('working'))
+  status(messageElement, t('working'))
   try {
     await operation()
   } catch (error) {
     if (error instanceof FoxmindError && error.code === 'credentialChanged') await reloadSettings()
-    const consoleClosed = error instanceof FoxmindError && error.code === 'consoleTabRequired'
-    if (!silent || (!consoleClosed && (lastAccount || settings.credential?.label))) status(messageElement, errorCopy(error))
+    status(messageElement, errorCopy(error))
   } finally {
     busy = false
-    readButton.disabled = saveKeyButton.disabled = groups.disabled = false
-    renderAccount()
     renderSettings()
   }
 }
 
-async function connect(silent = false) {
+async function connect() {
   await perform(accountStatus, async () => {
     account = undefined
     renderAccount()
     account = await readAccount()
     lastAccount = account.label
     status(accountStatus, account.groups.length ? '' : t('noGroups'))
-  }, silent)
+  })
 }
 
-async function refreshModels(configuration: Settings) {
+async function refreshModels(configuration = settings) {
   const service = getAIService(configuration)
-  if (!service) throw new FoxmindError('invalidKey')
-  const visible = await fetchModels(service)
-  const saved = await applyAvailableModels(visible, configuration)
-  await reloadSettings()
-  if (!sameCredentialVersion(settings, saved)) throw new FoxmindError('credentialChanged')
-  models = visible
+  if (!service) return
+  modelRequest?.abort()
+  const request = modelRequest = new AbortController()
+  status(modelStatus, t('working'))
   renderSettings()
-  status(modelStatus)
+  try {
+    const visible = await fetchModels(service, request.signal)
+    if (request.signal.aborted) return
+    await applyAvailableModels(visible, configuration)
+    await reloadSettings()
+    if (sameCredentialVersion(settings, configuration)) {
+      models = visible
+      status(modelStatus)
+    }
+  } catch (error) {
+    if (!request.signal.aborted && sameCredentialVersion(settings, configuration)) status(modelStatus, errorCopy(error, 'modelUnavailable'))
+  } finally {
+    if (modelRequest === request) modelRequest = undefined
+    renderSettings()
+  }
 }
 
 async function saveCredential(credential: Credential, expected?: CredentialSnapshot) {
@@ -200,11 +214,7 @@ async function saveCredential(credential: Credential, expected?: CredentialSnaps
   await reloadSettings()
   if (!sameCredentialVersion(settings, saved)) throw new FoxmindError('credentialChanged')
   status(accountStatus, t('keyReady'))
-  try {
-    await refreshModels(saved)
-  } catch (error) {
-    status(modelStatus, errorCopy(error, 'modelUnavailable'))
-  }
+  void refreshModels(saved)
 }
 
 function customOperation(operation: (service: AIService, expected: Settings) => Promise<void>) {
@@ -241,15 +251,7 @@ async function initialize() {
   renderCustomConfig()
   chrome.storage.onChanged.addListener((changes, area) => {
     if (area !== 'local') return
-    const next = { ...settings }
-    const keys = ['credential', 'credentialRevision', 'model', 'provider', 'customAI', 'allowCloud', 'language'] as const
-    for (const key of keys) {
-      if (changes[key]) Object.assign(next, { [key]: changes[key].newValue })
-    }
-    if (keys.some(key => key in changes)) {
-      credentialUpdates++
-      receiveSettings(next)
-    }
+    if (['credential', 'credentialRevision', 'model', 'provider', 'customAI', 'allowCloud', 'language'].some(key => key in changes)) void reloadSettings()
   })
   el('steps').hidden = !onboarding
   el('setupIntroGroup').hidden = !onboarding
@@ -264,7 +266,6 @@ async function initialize() {
     renderSettings()
     void initializeSummaryArchiveSettings().catch(error => status(el('archiveStatus'), errorCopy(error)))
   }
-  renderAccount()
   renderServer()
 
   provider.addEventListener('change', () => {
@@ -274,8 +275,6 @@ async function initialize() {
       await switchAIProvider(next, expected)
       await reloadSettings()
       status(modelStatus, t('providerSaved'))
-    }).then(() => {
-      if (settings.provider === 'foxmori') void connect(true)
     })
   })
   customLoad.addEventListener('click', () => {
@@ -343,8 +342,8 @@ async function initialize() {
     const selected = account
     const group = selected?.groups.find(item => String(item.id) === groups.value)
     if (!selected || !group) return
+    const expected = settings
     void perform(accountStatus, async () => {
-      const expected = await getSettings()
       const key = await issueKey(selected.id, group.id).catch(error => {
         if (error instanceof FoxmindError && ['accountChanged', 'loginRequired', 'consoleTabRequired'].includes(error.code)) {
           account = undefined
@@ -366,8 +365,7 @@ async function initialize() {
     })
   })
   loadButton.addEventListener('click', () => {
-    const configuration = settings
-    if (configuration.credential) void perform(modelStatus, () => refreshModels(configuration))
+    void refreshModels()
   })
   removeButton.addEventListener('click', () => {
     const expected = settings
@@ -436,5 +434,4 @@ async function initialize() {
       status(serverStatus, errorCopy(error))
     }
   })
-  if (settings.provider === 'foxmori') void connect(true)
 }
