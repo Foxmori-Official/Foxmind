@@ -7,7 +7,7 @@
 
 ## 快速安装
 
-1. 从发布附件下载并解压 foxmind-0.0.2.zip。[GitHub 最新发布](https://github.com/Foxmori-Official/Foxmind/releases/latest)
+1. 从发布附件下载并解压 foxmind-0.0.3.zip。[GitHub 最新发布](https://github.com/Foxmori-Official/Foxmind/releases/latest)
 2. 打开 Chrome 的 chrome://extensions 或 Edge 的 edge://extensions，开启开发者模式，点击「加载已解压的扩展程序」，选择包含 manifest.json 的文件夹。
 3. 按安装引导选择 AI 服务。使用狐森时，打开 [foxmori.com](https://foxmori.com/#models) 登录，返回后读取账户、选择套餐分组并获取密钥；也可填写主站已有的 API Key。使用第三方时，选择「自定义 AI 服务」并配置接口。
 4. 选择可用的对话模型，开启「网页内容授权」。将 Foxmind 固定到工具栏，打开普通网页后点击图标，再在侧边栏点击「总结当前页」。
